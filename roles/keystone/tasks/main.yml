@@ -1,0 +1,63 @@
+---
+- name: Installing Keystone (Ubuntu)
+  apt:
+    name: keystone
+    state: latest
+
+- name: Configuring Config File
+  lineinfile:
+    dest: /etc/keystone/keystone.conf
+    insertafter: '\[database\]'
+    regexp: 'connection = mysql+pymysql://keystone:password@localhost/keystone'
+    line: 'connection = mysql+pymysql://keystone:password@localhost/keystone'
+    backup: yes
+    backrefs: yes
+
+- name: Configuring Config File
+  lineinfile:
+    dest: /etc/keystone/keystone.conf
+    insertafter: '\[token\]'
+    line: 'provider = fernet'
+    backup: yes
+
+- name: Populating the Database
+  shell: keystone-manage db_sync
+  become: true
+
+- name: Initialize Fernet Key
+  shell:
+    keystone-manage fernet_setup --keystone-user keystone --keystone-group keystone
+
+- name: Initialize Fernet Key
+  shell:
+     keystone-manage credential_setup --keystone-user keystone --keystone-group keystone
+
+- name: Bootstrap the Identity service
+  shell: |
+    keystone-manage bootstrap --bootstrap-password password \
+      --bootstrap-admin-url http://controller:5000/v3/ \
+      --bootstrap-internal-url http://controller:5000/v3/ \
+      --bootstrap-public-url http://controller:5000/v3/ \
+      --bootstrap-region-id RegionOne
+
+- name: Configuring the Apache (HTTP) Server
+  lineinfile:
+    dest: /etc/apache2/apache2.conf
+    line: 'ServerName localhost'
+    state: present
+    backup: yes
+
+- name: Restart Apache service
+  service:
+    name: apache2
+    state: restarted
+
+- name: Configure Administrative Account Environmental Variables
+  shell:
+    export OS_USERNAME=admin
+    export OS_PASSWORD=password
+    export OS_PROJECT_NAME=admin
+    export OS_USER_DOMAIN_NAME=Default
+    export OS_PROJECT_DOMAIN_NAME=Default
+    export OS_AUTH_URL=http://controller:5000/v3
+    export OS_IDENTITY_API_VERSION=3

@@ -1,0 +1,10 @@
+---
+- name: Install and configure OpenStack services
+  hosts: controller
+  become: true
+
+  roles:
+    - base
+    #- keystone
+    - glance
+    #- nova

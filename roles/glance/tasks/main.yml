@@ -1,0 +1,63 @@
+---
+- name: Install Glance packages
+  apt:
+    name: glance
+    state: present
+
+- name: Configure Glance API
+  blockinfile:
+    dest: /etc/glance/glance-api.conf
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - Glance API Configuration"
+    block: |
+      [database]
+      connection = mysql+pymysql://glance:password@controller/glance
+
+      [keystone_authtoken]
+      www_authenticate_uri  = http://controller:5000/v3
+      auth_url = http://controller:5000/v3
+      memcached_servers = controller:11211
+      auth_type = password
+      project_domain_name = Default
+      user_domain_name = Default
+      project_name = service
+      username = glance
+      password = password
+
+      [paste_deploy]
+      flavor = keystone
+
+      [glance_store]
+      enabled_backends=fs:file
+      default_backend = fs
+
+      [fs]
+      filesystem_store_datadir = /var/lib/glance/images/
+
+      [oslo_limit]
+      auth_url = http://controller:5000
+      auth_type = password
+      user_domain_id = default
+      username = glance
+      system_scope = all
+      password = password
+      endpoint_id = 04e69d07f4534b22975d05877f29c905
+      region_name = RegionOne
+
+      [DEFAULT]
+      use_keystone_limits = True
+  vars:
+    GLANCE_DBPASS: "GLANCE"
+    GLANCE_PASS: "password"
+
+- name: Add Glance user to system-scope reader role
+  shell: >
+    openstack role add --user glance --user-domain Default --system all reader
+
+- name: Populate the Image service database
+  become: true
+  shell: glance-manage db_sync
+
+- name: Restart Glance API service
+  service:
+    name: glance-api
+    state: restarted
